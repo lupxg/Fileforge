@@ -23,10 +23,7 @@ public sealed class FixedSizeTextChunker : ITextChunker
 
             if (end < text.Length)
             {
-                var boundary = text.LastIndexOf(
-                    ' ',
-                    end - 1,
-                    end - start);
+                var boundary = text.LastIndexOf(' ', end - 1, end - start);
 
                 // Avoid creating a very small chunk just to find whitespace.
                 if (boundary > start + ChunkSize / 2)
@@ -39,9 +36,7 @@ public sealed class FixedSizeTextChunker : ITextChunker
 
             if (content.Length > 0)
             {
-                var wordCount = content.Split(
-                    (char[]?)null,
-                    StringSplitOptions.RemoveEmptyEntries).Length;
+                var wordCount = content.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
                 chunks.Add(new TextChunk(content, wordCount));
             }

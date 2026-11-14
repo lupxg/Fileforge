@@ -8,87 +8,59 @@ using System.Data;
 
 namespace Fileforge.Application.Features.Documents.ProcessDocument;
 
-public class ProcessDocumentHandler
+public class ProcessDocumentHandler(
+    IDocumentRepository documents,
+    IDocumentTextExtractor extractor,
+    ITextChunker chunker,
+    IEmbeddingService embeddings,
+    IChunkRepository chunks,
+    IUnitOfWork uow,
+    ILogger<ProcessDocumentHandler> logger)
 {
-    private readonly IDocumentRepository _documents;
-    private readonly IDocumentTextExtractor _extractor;
-    private readonly ITextChunker _chunker;
-    private readonly IEmbeddingService _embeddings;
-    private readonly IChunkRepository _chunks;
-    private readonly IUnitOfWork _uow;
-    private readonly ILogger<ProcessDocumentHandler> _logger;
+    private readonly IDocumentRepository _documents = documents;
+    private readonly IDocumentTextExtractor _extractor = extractor;
+    private readonly ITextChunker _chunker = chunker;
+    private readonly IEmbeddingService _embeddings = embeddings;
+    private readonly IChunkRepository _chunks = chunks;
+    private readonly IUnitOfWork _uow = uow;
+    private readonly ILogger<ProcessDocumentHandler> _logger = logger;
 
-    public ProcessDocumentHandler(
-        IDocumentRepository documents,
-        IDocumentTextExtractor extractor,
-        ITextChunker chunker,
-        IEmbeddingService embeddings,
-        IChunkRepository chunks,
-        IUnitOfWork uow,
-        ILogger<ProcessDocumentHandler> logger)
+    public async Task HandleAsync(Guid documentId, CancellationToken ct = default)
     {
-        _documents = documents;
-        _extractor = extractor;
-        _chunker = chunker;
-        _embeddings = embeddings;
-        _chunks = chunks;
-        _uow = uow;
-        _logger = logger;
-    }
-
-    public async Task HandleAsync(
-        Guid documentId,
-        CancellationToken ct)
-    {
-        var doc = await _documents.GetAsync(documentId, ct)
-            ?? throw new NotFoundException(documentId);
+        var doc = await _documents.GetAsync(documentId, ct) ?? throw new NotFoundException(documentId);
 
         doc.StartProcessing();
         await _uow.SaveChangesAsync(ct);
 
         try
         {
-            var text = await _extractor.ExtractAsync(
-                doc.StoragePath,
-                doc.ContentType,
-                ct);
+            var text = await _extractor.ExtractAsync(doc.StoragePath, doc.ContentType, ct);
 
             ct.ThrowIfCancellationRequested();
 
             if (string.IsNullOrWhiteSpace(text))
             {
-                throw new InvalidOperationException(
-                    "No extractable text was found.");
+                throw new InvalidOperationException("No extractable text was found.");
             }
 
             var pieces = _chunker.Chunk(text).ToList();
 
             if (pieces.Count == 0)
             {
-                throw new InvalidOperationException(
-                    "No chunks were produced.");
+                throw new InvalidOperationException("No chunks were produced.");
             }
 
-            var embeddings = await _embeddings.EmbedBatchAsync(
-                pieces.Select(p => p.Content).ToList(),
-                ct);
+            var embeddings = await _embeddings.EmbedBatchAsync(pieces.Select(p => p.Content).ToList(), ct);
 
             if (embeddings.Count != pieces.Count)
             {
-                throw new InvalidOperationException(
-                    $"Expected {pieces.Count} embeddings, " +
-                    $"received {embeddings.Count}.");
+                throw new InvalidOperationException($"Expected {pieces.Count} embeddings, received {embeddings.Count}.");
             }
 
             ct.ThrowIfCancellationRequested();
 
             var newChunks = pieces.Select((piece, index) =>
-                DocumentChunk.Create(
-                    doc.Id,
-                    index,
-                    piece.Content,
-                    piece.TokenCount,
-                    embeddings[index]))
+                DocumentChunk.Create(doc.Id, index, piece.Content, piece.TokenCount, embeddings[index]))
                 .ToList();
 
             await using var transaction = await _uow.BeginTransactionAsync(ct);
@@ -103,10 +75,7 @@ public class ProcessDocumentHandler
                 await _uow.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
 
-                _logger.LogInformation("Document {DocumentId} processed with {ChunkCount} chunks.",
-                    doc.Id,
-                    newChunks.Count);
-
+                _logger.LogInformation("Document {DocumentId} processed with {ChunkCount} chunks.", doc.Id, newChunks.Count);
             }
             catch
             {
@@ -116,10 +85,7 @@ public class ProcessDocumentHandler
                 }
                 catch (Exception rollbackException)
                 {
-                    _logger.LogError(
-                        rollbackException,
-                        "Rollback failed for document {DocumentId}.",
-                        doc.Id);
+                    _logger.LogError(rollbackException, "Rollback failed for document {DocumentId}.", doc.Id);
                 }
 
                 throw;
@@ -127,8 +93,7 @@ public class ProcessDocumentHandler
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            _logger.LogInformation("Processing canceled for document {DocumentId}.",
-                documentId);
+            _logger.LogInformation("Processing canceled for document {DocumentId}.", documentId);
 
             // Cancellation must not be reported as a processing failure.
             // Use a fresh DbContext/cleanup scope if the current transaction
@@ -137,10 +102,7 @@ public class ProcessDocumentHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Processing failed for document {DocumentId}.",
-                documentId);
+            _logger.LogError(ex, "Processing failed for document {DocumentId}.", documentId);
 
             _uow.ClearTracking();
 
