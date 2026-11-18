@@ -7,10 +7,10 @@ namespace Fileforge.Domain.Entities;
 public class Document
 {
     public Guid Id { get; private set; }
-    public string FileName { get; private set; } = default!;
-    public string ContentType { get; private set; } = default!;
+    public string FileName { get; private set; } = string.Empty;
+    public string ContentType { get; private set; } = string.Empty;
     public long SizeInBytes { get; private set; }
-    public string StoragePath { get; private set; } = default!;
+    public string StoragePath { get; private set; } = string.Empty;
     public int ChunkCount { get; private set; }
     public DocumentStatus Status { get; private set; }
     public string? FailureReason { get; private set; }
@@ -20,6 +20,33 @@ public class Document
     // Needed by EF.
     public Document() { }
 
+    public Document(string fileName, string contentType, long sizeInBytes, string storagePath)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            throw new DomainException("File name is required.");
+
+        if (string.IsNullOrWhiteSpace(contentType))
+            throw new DomainException("Content type is required.");
+
+        if (sizeInBytes <= 0)
+            throw new DomainException("File size must be greater than zero.");
+
+        if (string.IsNullOrWhiteSpace(storagePath))
+            throw new DomainException("Storage path is required.");
+
+
+
+        Id = Guid.NewGuid();
+        FileName = fileName;
+        ContentType = contentType;
+        SizeInBytes = sizeInBytes;
+        StoragePath = storagePath;
+        ChunkCount = 0;
+        Status = DocumentStatus.Uploaded;
+        FailureReason = null;
+        CreatedAtUtc = DateTime.UtcNow;
+        ProcessedAtUtc = null;
+    }
 
     public void StartProcessing()
     {
@@ -47,39 +74,5 @@ public class Document
         Status = DocumentStatus.Failed;
         FailureReason = reason;
         ProcessedAtUtc = DateTime.UtcNow;
-    }
-
-
-    public static Document Create(
-    string fileName,
-    string contentType,
-    long sizeInBytes,
-    string storagePath)
-    {
-        if (string.IsNullOrWhiteSpace(fileName))
-            throw new DomainException("File name is required.");
-
-        if (string.IsNullOrWhiteSpace(contentType))
-            throw new DomainException("Content type is required.");
-
-        if (sizeInBytes <= 0)
-            throw new DomainException("File size must be greater than zero.");
-
-        if (string.IsNullOrWhiteSpace(storagePath))
-            throw new DomainException("Storage path is required.");
-
-        return new Document
-        {
-            Id = Guid.NewGuid(),
-            FileName = fileName,
-            ContentType = contentType,
-            SizeInBytes = sizeInBytes,
-            StoragePath = storagePath,
-            ChunkCount = 0,
-            Status = DocumentStatus.Uploaded,
-            FailureReason = null,
-            CreatedAtUtc = DateTime.UtcNow,
-            ProcessedAtUtc = null
-        };
     }
 }

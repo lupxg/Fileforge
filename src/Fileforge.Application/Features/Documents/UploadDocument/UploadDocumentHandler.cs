@@ -32,7 +32,7 @@ public sealed class UploadDocumentHandler(IDocumentRepository documents, IFileSt
 
         try
         {
-            var document = Document.Create(fileName, contentType, sizeInBytes, storagePath);
+            var document = new Document(fileName, contentType, sizeInBytes, storagePath);
 
             await _documents.AddAsync(document, ct);
             await _unitOfWork.SaveChangesAsync(ct);
