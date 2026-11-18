@@ -14,16 +14,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Fileforge.IntegrationTests.FileForge.ApplicationTests;
 
-internal sealed class FakeTextExtractor(
-    string? result = null,
-    Exception? exception = null) : IDocumentTextExtractor
+internal sealed class FakeTextExtractor(string? result = null, Exception? exception = null) : IDocumentTextExtractor
 {
     public bool WasCalled { get; private set; }
 
-    public Task<string> ExtractAsync(
-        string storagePath,
-        string contentType,
-        CancellationToken ct)
+    public Task<string> ExtractAsync(string storagePath, string contentType, CancellationToken ct)
     {
         WasCalled = true;
         ct.ThrowIfCancellationRequested();
@@ -35,30 +30,23 @@ internal sealed class FakeTextExtractor(
     }
 }
 
-internal sealed class FakeTextChunker(
-    IReadOnlyList<TextChunk> chunks) : ITextChunker
+internal sealed class FakeTextChunker(IReadOnlyList<TextChunk> chunks) : ITextChunker
 {
     public IReadOnlyList<TextChunk> Chunk(string text) => chunks;
 }
 
-internal sealed class FakeEmbeddingService(
-    IReadOnlyList<ReadOnlyMemory<float>> embeddings)
-    : IEmbeddingService
+internal sealed class FakeEmbeddingService(IReadOnlyList<ReadOnlyMemory<float>> embeddings) : IEmbeddingService
 {
     private const int Dimensions = 1536;
 
-    public Task<ReadOnlyMemory<float>> EmbedAsync(
-        string text,
-        CancellationToken ct)
+    public Task<ReadOnlyMemory<float>> EmbedAsync(string text, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
         return Task.FromResult(CreateTestVector());
     }
 
-    public Task<IReadOnlyList<ReadOnlyMemory<float>>> EmbedBatchAsync(
-        IEnumerable<string> texts,
-        CancellationToken ct)
+    public Task<IReadOnlyList<ReadOnlyMemory<float>>> EmbedBatchAsync(IEnumerable<string> texts, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -66,18 +54,14 @@ internal sealed class FakeEmbeddingService(
 
         if (inputs.Count != embeddings.Count)
         {
-            throw new InvalidOperationException(
-                $"Expected {inputs.Count} embeddings, " +
-                $"but received {embeddings.Count}.");
+            throw new InvalidOperationException($"Expected {inputs.Count} embeddings, but received {embeddings.Count}.");
         }
 
         foreach (var embedding in embeddings)
         {
             if (embedding.Length != Dimensions)
             {
-                throw new InvalidOperationException(
-                    $"Expected {Dimensions} dimensions, " +
-                    $"but received {embedding.Length}.");
+                throw new InvalidOperationException($"Expected {Dimensions} dimensions, but received {embedding.Length}.");
             }
         }
 
@@ -98,18 +82,14 @@ internal sealed class TestEmbeddingService : IEmbeddingService
 {
     private const int Dimensions = 1536;
 
-    public Task<ReadOnlyMemory<float>> EmbedAsync(
-        string text,
-        CancellationToken ct)
+    public Task<ReadOnlyMemory<float>> EmbedAsync(string text, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
         return Task.FromResult(CreateTestVector());
     }
 
-    public Task<IReadOnlyList<ReadOnlyMemory<float>>> EmbedBatchAsync(
-        IEnumerable<string> texts,
-        CancellationToken ct)
+    public Task<IReadOnlyList<ReadOnlyMemory<float>>> EmbedBatchAsync(IEnumerable<string> texts, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
 
@@ -151,17 +131,12 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var document = Document.Create(
-            $"success-{Guid.NewGuid():N}.txt",
-            "text/plain",
-            100,
-            $"test/{Guid.NewGuid():N}.txt");
+        var document = new Document($"success-{Guid.NewGuid():N}.txt", "text/plain", 100, $"test/{Guid.NewGuid():N}.txt");
 
         // Arrange: persist the document.
         using (var setupScope = fixture.CreateScope())
         {
-            var db = setupScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
+            var db = setupScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
             db.Documents.Add(document);
 
@@ -196,8 +171,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
         // Assert: verify persisted state using a fresh scope.
         using var verificationScope = fixture.CreateScope();
 
-        var verificationDb = verificationScope.ServiceProvider
-            .GetRequiredService<FileForgeDbContext>();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
         var savedDocument = await verificationDb.Documents
             .AsNoTracking()
@@ -223,17 +197,12 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var document = Document.Create(
-            $"failure-{Guid.NewGuid():N}.txt",
-            "text/plain",
-            100,
-            $"test/{Guid.NewGuid():N}.txt");
+        var document = new Document($"failure-{Guid.NewGuid():N}.txt", "text/plain", 100, $"test/{Guid.NewGuid():N}.txt");
 
         // Arrange: persist the document.
         using (var setupScope = fixture.CreateScope())
         {
-            var db = setupScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
+            var db = setupScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
             db.Documents.Add(document);
 
@@ -256,8 +225,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
                 services.GetRequiredService<IUnitOfWork>(),
                 NullLogger<ProcessDocumentHandler>.Instance);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => handler.HandleAsync(document.Id, ct));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => handler.HandleAsync(document.Id, ct));
         }
 
         // Assert: the failure status was persisted.
@@ -279,24 +247,14 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var document = Document.Create(
-            $"rollback-{Guid.NewGuid():N}.txt",
-            "text/plain",
-            100,
-            $"test/{Guid.NewGuid():N}.txt");
+        var document = new Document($"rollback-{Guid.NewGuid():N}.txt", "text/plain", 100, $"test/{Guid.NewGuid():N}.txt");
 
-        var originalChunk = DocumentChunk.Create(
-            document.Id,
-            0,
-            "Original chunk",
-            2,
-            CreateTestEmbedding(0));
+        var originalChunk = new DocumentChunk(document.Id, 0, "Original chunk", 2, CreateTestEmbedding(0));
 
         // Arrange: persist the document and original chunk.
         using (var setupScope = fixture.CreateScope())
         {
-            var db = setupScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
+            var db = setupScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
             db.Documents.Add(document);
             db.DocumentChunks.Add(originalChunk);
@@ -309,8 +267,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
         {
             var services = processingScope.ServiceProvider;
 
-            var realChunkRepository =
-                services.GetRequiredService<IChunkRepository>();
+            var realChunkRepository = services.GetRequiredService<IChunkRepository>();
 
             var failingChunkRepository = new FailingChunkRepository(realChunkRepository);
 
@@ -331,9 +288,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
 
             var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.HandleAsync(document.Id, ct));
 
-            Assert.Equal(
-                "Simulated failure while adding replacement chunks.",
-                exception.Message);
+            Assert.Equal("Simulated failure while adding replacement chunks.", exception.Message);
         }
 
         // Assert: inspect persisted state through a fresh DbContext.
@@ -362,24 +317,14 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var document = Document.Create(
-            $"embedding-mismatch-{Guid.NewGuid():N}.txt",
-            "text/plain",
-            100,
-            $"test/{Guid.NewGuid():N}.txt");
+        var document = new Document($"embedding-mismatch-{Guid.NewGuid():N}.txt", "text/plain", 100, $"test/{Guid.NewGuid():N}.txt");
 
-        var originalChunk = DocumentChunk.Create(
-            document.Id,
-            0,
-            "Original chunk",
-            2,
-            CreateTestEmbedding(0));
+        var originalChunk = new DocumentChunk(document.Id, 0, "Original chunk", 2, CreateTestEmbedding(0));
 
         // Arrange: persist the document and its original chunk.
         using (var setupScope = fixture.CreateScope())
         {
-            var db = setupScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
+            var db = setupScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
             db.Documents.Add(document);
             db.DocumentChunks.Add(originalChunk);
@@ -408,19 +353,15 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
                 services.GetRequiredService<IUnitOfWork>(),
                 NullLogger<ProcessDocumentHandler>.Instance);
 
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => handler.HandleAsync(document.Id, ct));
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.HandleAsync(document.Id, ct));
 
-            Assert.Equal(
-                "Expected 2 embeddings, but received 1.",
-                exception.Message);
+            Assert.Equal("Expected 2 embeddings, but received 1.", exception.Message);
         }
 
         // Assert: inspect persisted state using a fresh DbContext.
         using var verificationScope = fixture.CreateScope();
 
-        var verificationDb = verificationScope.ServiceProvider
-            .GetRequiredService<FileForgeDbContext>();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
         var savedDocument = await verificationDb.Documents
             .AsNoTracking()
@@ -432,9 +373,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
             .ToListAsync(ct);
 
         Assert.Equal(DocumentStatus.Failed, savedDocument.Status);
-        Assert.Equal(
-            "Document processing failed.",
-            savedDocument.FailureReason);
+        Assert.Equal("Document processing failed.", savedDocument.FailureReason);
 
         var remainingChunk = Assert.Single(savedChunks);
 
@@ -456,9 +395,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
 
         var services = processingScope.ServiceProvider;
 
-        var handler = new ProcessDocumentHandler(
-            services.GetRequiredService<IDocumentRepository>(),
-            extractor,
+        var handler = new ProcessDocumentHandler(services.GetRequiredService<IDocumentRepository>(), extractor,
             new FakeTextChunker([]),
             new FakeEmbeddingService([]),
             services.GetRequiredService<IChunkRepository>(),
@@ -466,8 +403,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
             NullLogger<ProcessDocumentHandler>.Instance);
 
         // Act: request a document ID that was never persisted.
-        await Assert.ThrowsAsync<NotFoundException>(
-            () => handler.HandleAsync(documentId, ct));
+        await Assert.ThrowsAsync<NotFoundException>(() => handler.HandleAsync(documentId, ct));
 
         // Assert: processing never began.
         Assert.False(extractor.WasCalled);
@@ -478,25 +414,16 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var filePath = Path.Combine(
-            Path.GetTempPath(),
-            $"{Guid.NewGuid():N}.txt");
+        var filePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.txt");
 
-        var text = string.Concat(
-            Enumerable.Repeat(
-                "FileForge extracts document text and splits it into chunks. ",
-                50));
+        var text = string.Concat(Enumerable.Repeat("FileForge extracts document text and splits it into chunks. ", 50));
 
         try
         {
             await File.WriteAllTextAsync(filePath, text, ct);
             var fileSize = new FileInfo(filePath).Length;
 
-            var document = Document.Create(
-                "integration-test.txt",
-                "text/plain",
-                fileSize,
-                filePath);
+            var document = new Document("integration-test.txt", "text/plain", fileSize, filePath);
 
             // Persist the document before processing.
             using (var setupScope = fixture.CreateScope())
@@ -529,8 +456,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
             }
 
             using var assertionScope = fixture.CreateScope();
-            var db = assertionScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
+            var db = assertionScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
             var savedDocument = await db.Documents
                 .AsNoTracking()
@@ -545,9 +471,7 @@ public sealed class ProcessDocumentHandlerTests(PostgresFixture fixture) : IClas
             Assert.Equal(DocumentStatus.Ready, savedDocument.Status);
             Assert.True(savedChunks.Count > 1);
             Assert.Equal(savedChunks.Count, savedDocument.ChunkCount);
-            Assert.All(
-                savedChunks,
-                chunk => Assert.False(string.IsNullOrWhiteSpace(chunk.Content)));
+            Assert.All(savedChunks, chunk => Assert.False(string.IsNullOrWhiteSpace(chunk.Content)));
         }
         finally
         {

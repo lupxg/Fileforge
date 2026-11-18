@@ -60,7 +60,7 @@ public class ProcessDocumentHandler(
             ct.ThrowIfCancellationRequested();
 
             var newChunks = pieces.Select((piece, index) =>
-                DocumentChunk.Create(doc.Id, index, piece.Content, piece.TokenCount, embeddings[index]))
+                new DocumentChunk(doc.Id, index, piece.Content, piece.TokenCount, embeddings[index]))
                 .ToList();
 
             await using var transaction = await _uow.BeginTransactionAsync(ct);

@@ -2,7 +2,6 @@
 using Fileforge.Application.Interfaces;
 using Fileforge.Domain.Entities;
 using Fileforge.Infrastructure.Persistence;
-using Fileforge.Infrastructure.Persistence.Repositories;
 using Fileforge.IntegrationTests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,14 +25,8 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
     public void AddInfrastructure_ShouldRegisterRepositories()
     {
         using var scope = fixture.CreateScope();
-
-        var documentRepository =
-            scope.ServiceProvider
-                .GetService<IDocumentRepository>();
-
-        var chunkRepository =
-            scope.ServiceProvider
-                .GetService<IChunkRepository>();
+        var documentRepository = scope.ServiceProvider.GetService<IDocumentRepository>();
+        var chunkRepository = scope.ServiceProvider.GetService<IChunkRepository>();
 
         Assert.NotNull(documentRepository);
         Assert.NotNull(chunkRepository);
@@ -44,22 +37,12 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
     {
         // Arrange: resolve services from the same scope.
         using var scope = fixture.CreateScope();
-
-        var dbContext = scope.ServiceProvider
-            .GetRequiredService<FileForgeDbContext>();
-
-        var chunkRepository = scope.ServiceProvider
-            .GetRequiredService<IChunkRepository>();
-
-        var unitOfWork = scope.ServiceProvider
-            .GetRequiredService<IUnitOfWork>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
+        var chunkRepository = scope.ServiceProvider.GetRequiredService<IChunkRepository>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
         // Create and persist the parent document first.
-        var document = Document.Create(
-            "example.pdf",
-            "application/pdf",
-            100,
-            "documents/example.pdf");
+        var document = Document.Create("example.pdf", "application/pdf", 100, "documents/example.pdf");
 
         dbContext.Documents.Add(document);
         await unitOfWork.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -67,13 +50,8 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
         // Create chunks associated with that document.
         var chunks = new[]
         {
-            DocumentChunk.Create(
-                document.Id, 0, "First chunk", 2,
-                CreateTestEmbedding(0)),
-
-            DocumentChunk.Create(
-                document.Id, 1, "Second chunk", 2,
-                CreateTestEmbedding(1))
+            new DocumentChunk(document.Id, 0, "First chunk", 2, CreateTestEmbedding(0)),
+            new DocumentChunk(document.Id, 1, "Second chunk", 2, CreateTestEmbedding(1))
         };
 
         // Act: track the chunks, then persist them.
@@ -96,21 +74,14 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
         var ct = TestContext.Current.CancellationToken;
 
         // Arrange: create and persist the parent document.
-        var document = Document.Create(
-            $"test-{Guid.NewGuid():N}.txt",
-            "text/plain",
-            100,
-            $"test/{Guid.NewGuid():N}.txt");
+        var document = Document.Create($"test-{Guid.NewGuid():N}.txt", "text/plain", 100, $"test/{Guid.NewGuid():N}.txt");
 
         var documentId = document.Id;
 
         using (var setupScope = fixture.CreateScope())
         {
-            var dbContext = setupScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
-
-            var unitOfWork = setupScope.ServiceProvider
-                .GetRequiredService<IUnitOfWork>();
+            var dbContext = setupScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
+            var unitOfWork = setupScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             dbContext.Documents.Add(document);
 
@@ -120,47 +91,32 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
         // Arrange: create and persist a chunk for the document.
         var chunks = new[]
         {
-            DocumentChunk.Create(
-                documentId,
-                0,
-                "Chunk to delete",
-                3,
-                CreateTestEmbedding(0))
+            new DocumentChunk(documentId, 0, "Chunk to delete", 3, CreateTestEmbedding(0))
         };
 
         using (var insertScope = fixture.CreateScope())
         {
-            var repository = insertScope.ServiceProvider 
-                .GetRequiredService<IChunkRepository>();
-
-            var unitOfWork = insertScope.ServiceProvider
-                .GetRequiredService<IUnitOfWork>();
+            var repository = insertScope.ServiceProvider.GetRequiredService<IChunkRepository>();
+            var unitOfWork = insertScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             await repository.AddRangeAsync(chunks, ct);
-
             await unitOfWork.SaveChangesAsync(ct);
         }
 
         // Act: delete all chunks belonging to the document.
         using (var deleteScope = fixture.CreateScope())
         {
-            var repository = deleteScope.ServiceProvider
-                .GetRequiredService<IChunkRepository>();
-
-            var unitOfWork = deleteScope.ServiceProvider
-                .GetRequiredService<IUnitOfWork>();
+            var repository = deleteScope.ServiceProvider.GetRequiredService<IChunkRepository>();
+            var unitOfWork = deleteScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             await repository.DeleteByDocumentIdAsync(documentId, ct);
-
-            // Required if deletion is tracked by EF Core.
             await unitOfWork.SaveChangesAsync(ct);
         }
 
         // Assert: verify using a fresh DbContext.
         using var verificationScope = fixture.CreateScope();
 
-        var verificationDb = verificationScope.ServiceProvider
-            .GetRequiredService<FileForgeDbContext>();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
         var remainingChunks = await verificationDb.DocumentChunks
             .AsNoTracking()
@@ -176,29 +132,17 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
     {
         var ct = TestContext.Current.CancellationToken;
 
-        var document = Document.Create(
-            $"test-{Guid.NewGuid():N}.txt",
-            "text/plain",
-            100,
-            $"test/{Guid.NewGuid():N}.txt");
+        var document = Document.Create($"test-{Guid.NewGuid():N}.txt","text/plain", 100, $"test/{Guid.NewGuid():N}.txt");
 
         var documentId = document.Id;
 
-        var originalChunk = DocumentChunk.Create(
-            documentId,
-            0,
-            "Original chunk",
-            2,
-            CreateTestEmbedding(0));
+        var originalChunk = new DocumentChunk(documentId, 0, "Original chunk", 2, CreateTestEmbedding(0));
 
         // Arrange: persist the document and its original chunk.
         using (var setupScope = fixture.CreateScope())
         {
-            var db = setupScope.ServiceProvider
-                .GetRequiredService<FileForgeDbContext>();
-
-            var unitOfWork = setupScope.ServiceProvider
-                .GetRequiredService<IUnitOfWork>();
+            var db = setupScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
+            var unitOfWork = setupScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
             db.Documents.Add(document);
             await unitOfWork.SaveChangesAsync(ct);
@@ -210,24 +154,18 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
         // Act: simulate a failed replacement operation.
         using (var failureScope = fixture.CreateScope())
         {
-            var chunkRepository = failureScope.ServiceProvider
-                .GetRequiredService<IChunkRepository>();
+            var chunkRepository = failureScope.ServiceProvider.GetRequiredService<IChunkRepository>();
+            var unitOfWork = failureScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
 
-            var unitOfWork = failureScope.ServiceProvider
-                .GetRequiredService<IUnitOfWork>();
-
-            await using var transaction =
-                await unitOfWork.BeginTransactionAsync(ct);
+            await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
 
             try
             {
                 // Marks the original chunk as Deleted in EF Core.
-                await chunkRepository.DeleteByDocumentIdAsync(
-                    documentId, ct);
+                await chunkRepository.DeleteByDocumentIdAsync(documentId, ct);
 
                 // Simulate a failure after deletion but before replacement.
-                throw new InvalidOperationException(
-                    "Simulated failure while creating replacement chunks.");
+                throw new InvalidOperationException("Simulated failure while creating replacement chunks.");
             }
             catch (InvalidOperationException)
             {
@@ -242,13 +180,13 @@ public sealed class InfrastructureIntegrationTests(PostgresFixture fixture) : IC
         // Assert: verify persisted data using a fresh DbContext.
         using var verificationScope = fixture.CreateScope();
 
-        var verificationDb = verificationScope.ServiceProvider
-            .GetRequiredService<FileForgeDbContext>();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<FileForgeDbContext>();
 
         var remainingChunks = await verificationDb.DocumentChunks
             .AsNoTracking()
             .Where(chunk => chunk.DocumentId == documentId)
             .ToListAsync(ct);
+
 
         Assert.Single(remainingChunks);
         Assert.Equal("Original chunk", remainingChunks[0].Content);

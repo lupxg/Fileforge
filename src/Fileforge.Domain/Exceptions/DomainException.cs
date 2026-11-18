@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace Fileforge.Domain.Exceptions;
 
-namespace Fileforge.Domain.Exceptions;
-
-public class DomainException : Exception
+public class DomainException(string message) : Exception(message)
 {
-    public DomainException(string message) : base(message) { }
+
 }
